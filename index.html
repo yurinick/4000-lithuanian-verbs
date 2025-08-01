@@ -66,10 +66,13 @@
 <script>
 document.addEventListener('DOMContentLoaded', () => {
 
-  // === ГЛОБАЛЬНЫЕ ПЕРЕМЕННЫЕ ДЛЯ ДАННЫХ ===
+  // === ГЛОБАЛЬНЫЕ ПЕРЕМЕННЫЕ ===
   let allVerbsData = [];
   let conjugationsData = {};
-  let mainTableHeaders = ["Infinitive", "Present 3rd", "Past 3rd"];
+  // Заголовки, которые мы будем показывать в основной таблице
+  const mainTableHeaders = ["Инфинитив", "3 л. наст.", "3 л. прош."];
+  // URL для загрузки JSON файла со спряжениями.
+  const CONJUGATIONS_URL = https://gist.githubusercontent.com/yurinick/b589a1e7ec06acb884a086b4b79344c9/raw/fbf670eef33a6eca574b9f1956c32cbaece527d4/conjugations.json;
 
   // === ИНТЕГРАЦИЯ С TELEGRAM И ПРОВЕРКА ДОСТУПА ===
   const ALLOWED_USER_IDS = [123456789]; // <-- ЗАМЕНИТЕ ЭТОТ ID НА ВАШ
@@ -77,7 +80,6 @@ document.addEventListener('DOMContentLoaded', () => {
   try {
     const tg = window.Telegram.WebApp;
     const currentUser = tg.initDataUnsafe?.user;
-
     if (currentUser && !ALLOWED_USER_IDS.includes(currentUser.id)) {
       document.getElementById('main-content').style.display = 'none';
       document.getElementById('access-denied').classList.remove('hidden');
@@ -90,9 +92,7 @@ document.addEventListener('DOMContentLoaded', () => {
       tg.MainButton.setText('Закрыть').setTextColor('#ffffff').setColor('#0ea5e9').show();
       tg.onEvent('mainButtonClicked', () => tg.close());
     }
-  } catch (e) {
-    console.log("Not in Telegram environment or access check skipped.");
-  }
+  } catch (e) { console.log("Not in Telegram environment."); }
 
   // === ССЫЛКИ НА ЭЛЕМЕНТЫ DOM ===
   const searchInput = document.getElementById('searchInput');
@@ -116,7 +116,6 @@ document.addEventListener('DOMContentLoaded', () => {
   // === ФУНКЦИИ РЕНДЕРИНГА ===
   const renderTable = (dataToRender) => {
     tableHead.innerHTML = ''; tableBody.innerHTML = '';
-    
     const headerRow = document.createElement('tr');
     mainTableHeaders.forEach(h => {
       const th = document.createElement('th');
@@ -129,11 +128,12 @@ document.addEventListener('DOMContentLoaded', () => {
       const tr = document.createElement('tr');
       tr.className = 'hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors duration-150 cursor-pointer';
       tr.addEventListener('click', () => {
-        const rawKey = row[mainTableHeaders[0]];
-        const normalizedKey = normalizeForMatch(rawKey);
-        showModalForVerb(normalizedKey);
+        const rawKey = row[mainTableHeaders[0]]; // Берем инфинитив из данных строки
+        if (rawKey) {
+            const normalizedKey = normalizeForMatch(rawKey);
+            showModalForVerb(normalizedKey);
+        }
       });
-      
       mainTableHeaders.forEach(header => {
         const td = document.createElement('td');
         td.className = 'px-4 py-2 whitespace-nowrap md:whitespace-normal text-gray-700 dark:text-gray-300';
@@ -150,23 +150,18 @@ document.addEventListener('DOMContentLoaded', () => {
   function showModalForVerb(verbKey) {
     const verbInfo = conjugationsData[verbKey];
     if (!verbInfo) { alert('No additional information available for this verb.'); return; }
-    
     modalTitle.textContent = verbKey.charAt(0).toUpperCase() + verbKey.slice(1);
     modalBody.innerHTML = '';
-
     Object.keys(verbInfo).forEach(tense => {
       const tenseTitle = document.createElement('h3');
       tenseTitle.className = 'text-lg font-semibold mt-4 mb-2 text-sky-600 dark:text-sky-400';
       tenseTitle.textContent = tense;
       modalBody.appendChild(tenseTitle);
-
       const table = document.createElement('table');
       table.className = 'min-w-full text-sm divide-y divide-gray-200 dark:divide-gray-700 mb-4';
-      
       const thead = document.createElement('thead');
       thead.innerHTML = `<tr class="bg-gray-50 dark:bg-gray-700"><th class="px-2 py-1 text-left font-medium text-gray-500 dark:text-gray-300">Person</th><th class="px-2 py-1 text-left font-medium text-gray-500 dark:text-gray-300">Form(s)</th><th class="px-2 py-1 text-left font-medium text-gray-500 dark:text-gray-300">Translation</th></tr>`;
       table.appendChild(thead);
-
       const tbody = document.createElement('tbody');
       verbInfo[tense].forEach(row => {
         const tr = document.createElement('tr');
@@ -177,37 +172,33 @@ document.addEventListener('DOMContentLoaded', () => {
       table.appendChild(tbody);
       modalBody.appendChild(table);
     });
-
     modalOverlay.classList.remove('hidden');
   }
 
-  function closeModal() {
-    modalOverlay.classList.add('hidden');
-  }
+  function closeModal() { modalOverlay.classList.add('hidden'); }
 
   // === ЗАГРУЗКА ДАННЫХ ===
   async function loadData() {
     try {
       const [csvResponse, jsonResponse] = await Promise.all([
         fetch('verbs.csv'),
-        fetch('conjugations.json')
+        fetch(CONJUGATIONS_URL)
       ]);
-
-      if (!csvResponse.ok || !jsonResponse.ok) {
-        throw new Error('Network response was not ok. Check if files exist and are named correctly.');
-      }
-
-      // Обрабатываем CSV
+      if (!csvResponse.ok) throw new Error('Could not load verbs.csv. Is it in the repository?');
+      if (!jsonResponse.ok) throw new Error('Could not load conjugations.json from Gist. Check the URL.');
+      
       const csvText = await csvResponse.text();
       const lines = csvText.trim().split('\n').filter(Boolean);
       allVerbsData = lines.map(line => {
         const values = line.split(',');
+        // Сопоставляем данные по номеру колонки
         const row = {};
-        mainTableHeaders.forEach((header, index) => { row[header] = values[index] ? values[index].trim() : ''; });
+        row[mainTableHeaders[0]] = values[3] ? values[3].trim() : ''; // Инфинитив (4-я колонка)
+        row[mainTableHeaders[1]] = values[4] ? values[4].trim() : ''; // 3 л. наст. (5-я колонка)
+        row[mainTableHeaders[2]] = values[5] ? values[5].trim() : ''; // 3 л. прош. (6-я колонка)
         return row;
       });
 
-      // Обрабатываем JSON и создаем нормализованную версию
       const rawConjugations = await jsonResponse.json();
       conjugationsData = {}; 
       for (const key in rawConjugations) {
@@ -228,7 +219,6 @@ document.addEventListener('DOMContentLoaded', () => {
   searchInput.addEventListener('input', (event) => {
     const searchTerm = event.target.value.trim();
     if (!searchTerm) { renderTable(allVerbsData); return; }
-    
     const normalizedSearchTerm = normalizeForSearch(searchTerm);
     const filteredData = allVerbsData.filter(row => 
         Object.values(row).some(cell => 
@@ -244,9 +234,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // === НАЧАЛЬНЫЙ ЗАПУСК ===
   loadData();
-
 });
 </script>
-
 </body>
 </html>
