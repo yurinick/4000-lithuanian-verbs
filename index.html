@@ -1,0 +1,252 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no" />
+  <title>Lithuanian Verbs</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://telegram.org/js/telegram-web-app.js"></script>
+  <style>
+    body { font-family: 'Inter', sans-serif; transition: background-color 0.3s, color 0.3s; }
+    #main-content { height: 100vh; display: flex; flex-direction: column; }
+    #table-wrapper { flex-grow: 1; overflow-y: auto; }
+    ::-webkit-scrollbar { width: 6px; height: 6px; }
+    ::-webkit-scrollbar-track { background: #f1f1f1; }
+    ::-webkit-scrollbar-thumb { background: #888; border-radius: 10px; }
+    .dark ::-webkit-scrollbar-track { background: #2d3748; }
+    .dark ::-webkit-scrollbar-thumb { background: #718096; }
+  </style>
+</head>
+<body class="bg-gray-100 dark:bg-gray-900 text-gray-900 dark:text-gray-100 antialiased">
+
+<div id="access-denied" class="hidden fixed inset-0 bg-gray-100 dark:bg-gray-900 flex items-center justify-center z-50 text-center p-4">
+    <div>
+        <p class="text-2xl font-bold text-red-600 dark:text-red-500">Access Denied</p>
+        <p class="mt-2 text-gray-600 dark:text-gray-400">You do not have permission to use this application.</p>
+    </div>
+</div>
+
+<div id="main-content" class="mx-auto max-w-5xl">
+  <header class="p-4 bg-gray-100 dark:bg-gray-900 border-b border-gray-200 dark:border-gray-700">
+    <h1 class="text-xl sm:text-2xl font-bold text-sky-700 dark:text-sky-300 text-center">
+      Lithuanian Verbs Search
+    </h1>
+    <div class="mt-4 relative">
+      <input type="text" id="searchInput" placeholder="Search any form..." class="w-full p-3 pl-10 text-base border border-gray-300 dark:border-gray-600 rounded-lg shadow-sm focus:ring-2 focus:ring-sky-500 focus:border-sky-500 outline-none bg-white dark:bg-gray-700 text-gray-800 dark:text-gray-200 placeholder-gray-400 dark:placeholder-gray-500 transition-all" />
+      <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-5 h-5 absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 dark:text-gray-500"><path stroke-linecap="round" stroke-linejoin="round" d="m21 21-5.197-5.197m0 0A7.5 7.5 0 1 0 5.196 5.196a7.5 7.5 0 0 0 10.607 10.607Z" /></svg>
+    </div>
+     <div id="error-container" class="mt-2 p-2 bg-red-100 dark:bg-red-800 border border-red-300 dark:border-red-600 text-red-700 dark:text-red-200 rounded-md text-sm hidden"></div>
+  </header>
+
+  <div id="table-wrapper" class="p-4">
+      <div id="loading-indicator" class="text-center py-4 text-gray-600 dark:text-gray-400">Loading data...</div>
+      <div id="no-results-message" class="text-center py-10 hidden">
+        <p class="text-lg text-gray-600 dark:text-gray-400">No results found.</p>
+      </div>
+      <div class="overflow-x-auto bg-white dark:bg-gray-800 rounded-lg shadow-md">
+        <table class="min-w-full text-sm">
+          <thead id="table-head" class="bg-gray-50 dark:bg-gray-700 sticky top-0 z-10"></thead>
+          <tbody id="table-body" class="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700 even:bg-gray-50 dark:even:bg-gray-700"></tbody>
+        </table>
+      </div>
+       <p id="record-count" class="mt-4 text-xs text-gray-500 dark:text-gray-400 text-center"></p>
+  </div>
+</div>
+
+<div id="modal-overlay" class="hidden fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+    <div id="modal-content" class="bg-white dark:bg-gray-800 rounded-lg shadow-xl w-full max-w-2xl max-h-[90vh] flex flex-col">
+        <div class="flex justify-between items-center p-4 border-b border-gray-200 dark:border-gray-700">
+            <h2 id="modal-title" class="text-xl font-semibold text-gray-800 dark:text-gray-200"></h2>
+            <button id="modal-close-button" class="text-gray-500 hover:text-gray-800 dark:hover:text-gray-200 text-3xl leading-none">&times;</button>
+        </div>
+        <div id="modal-body" class="p-4 overflow-y-auto"></div>
+    </div>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', () => {
+
+  // === ГЛОБАЛЬНЫЕ ПЕРЕМЕННЫЕ ДЛЯ ДАННЫХ ===
+  let allVerbsData = [];
+  let conjugationsData = {};
+  let mainTableHeaders = ["Infinitive", "Present 3rd", "Past 3rd"];
+
+  // === ИНТЕГРАЦИЯ С TELEGRAM И ПРОВЕРКА ДОСТУПА ===
+  const ALLOWED_USER_IDS = [123456789]; // <-- ЗАМЕНИТЕ ЭТОТ ID НА ВАШ
+
+  try {
+    const tg = window.Telegram.WebApp;
+    const currentUser = tg.initDataUnsafe?.user;
+
+    if (currentUser && !ALLOWED_USER_IDS.includes(currentUser.id)) {
+      document.getElementById('main-content').style.display = 'none';
+      document.getElementById('access-denied').classList.remove('hidden');
+      tg.ready();
+    } else {
+      tg.ready();
+      const applyTheme = () => document.body.classList.toggle('dark', tg.colorScheme === 'dark');
+      tg.onEvent('themeChanged', applyTheme);
+      applyTheme();
+      tg.MainButton.setText('Закрыть').setTextColor('#ffffff').setColor('#0ea5e9').show();
+      tg.onEvent('mainButtonClicked', () => tg.close());
+    }
+  } catch (e) {
+    console.log("Not in Telegram environment or access check skipped.");
+  }
+
+  // === ССЫЛКИ НА ЭЛЕМЕНТЫ DOM ===
+  const searchInput = document.getElementById('searchInput');
+  const tableHead = document.getElementById('table-head');
+  const tableBody = document.getElementById('table-body');
+  const loadingIndicator = document.getElementById('loading-indicator');
+  const noResultsMessage = document.getElementById('no-results-message');
+  const errorContainer = document.getElementById('error-container');
+  const recordCount = document.getElementById('record-count');
+  const modalOverlay = document.getElementById('modal-overlay');
+  const modalContent = document.getElementById('modal-content');
+  const modalTitle = document.getElementById('modal-title');
+  const modalBody = document.getElementById('modal-body');
+  const modalCloseButton = document.getElementById('modal-close-button');
+
+  // === ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ ===
+  const normalizeForSearch = (str) => str.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+  const normalizeForMatch = (str) => str.normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+  const showError = (message) => { errorContainer.textContent = message; errorContainer.classList.remove('hidden'); };
+  
+  // === ФУНКЦИИ РЕНДЕРИНГА ===
+  const renderTable = (dataToRender) => {
+    tableHead.innerHTML = ''; tableBody.innerHTML = '';
+    
+    const headerRow = document.createElement('tr');
+    mainTableHeaders.forEach(h => {
+      const th = document.createElement('th');
+      th.className = 'px-4 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider';
+      th.textContent = h; headerRow.appendChild(th);
+    });
+    tableHead.appendChild(headerRow);
+
+    dataToRender.forEach(row => {
+      const tr = document.createElement('tr');
+      tr.className = 'hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors duration-150 cursor-pointer';
+      tr.addEventListener('click', () => {
+        const rawKey = row[mainTableHeaders[0]];
+        const normalizedKey = normalizeForMatch(rawKey);
+        showModalForVerb(normalizedKey);
+      });
+      
+      mainTableHeaders.forEach(header => {
+        const td = document.createElement('td');
+        td.className = 'px-4 py-2 whitespace-nowrap md:whitespace-normal text-gray-700 dark:text-gray-300';
+        td.textContent = row[header]; tr.appendChild(td);
+      });
+      tableBody.appendChild(tr);
+    });
+    
+    noResultsMessage.classList.toggle('hidden', dataToRender.length > 0);
+    recordCount.textContent = dataToRender.length > 0 ? `Showing ${dataToRender.length} of ${allVerbsData.length}` : '';
+  };
+
+  // === ФУНКЦИИ МОДАЛЬНОГО ОКНА ===
+  function showModalForVerb(verbKey) {
+    const verbInfo = conjugationsData[verbKey];
+    if (!verbInfo) { alert('No additional information available for this verb.'); return; }
+    
+    modalTitle.textContent = verbKey.charAt(0).toUpperCase() + verbKey.slice(1);
+    modalBody.innerHTML = '';
+
+    Object.keys(verbInfo).forEach(tense => {
+      const tenseTitle = document.createElement('h3');
+      tenseTitle.className = 'text-lg font-semibold mt-4 mb-2 text-sky-600 dark:text-sky-400';
+      tenseTitle.textContent = tense;
+      modalBody.appendChild(tenseTitle);
+
+      const table = document.createElement('table');
+      table.className = 'min-w-full text-sm divide-y divide-gray-200 dark:divide-gray-700 mb-4';
+      
+      const thead = document.createElement('thead');
+      thead.innerHTML = `<tr class="bg-gray-50 dark:bg-gray-700"><th class="px-2 py-1 text-left font-medium text-gray-500 dark:text-gray-300">Person</th><th class="px-2 py-1 text-left font-medium text-gray-500 dark:text-gray-300">Form(s)</th><th class="px-2 py-1 text-left font-medium text-gray-500 dark:text-gray-300">Translation</th></tr>`;
+      table.appendChild(thead);
+
+      const tbody = document.createElement('tbody');
+      verbInfo[tense].forEach(row => {
+        const tr = document.createElement('tr');
+        tr.className = 'hover:bg-gray-100 dark:hover:bg-gray-600';
+        tr.innerHTML = `<td class="px-2 py-1">${row.person}</td><td class="px-2 py-1">${row.forms.join(', ')}</td><td class="px-2 py-1">${row.translation}</td>`;
+        tbody.appendChild(tr);
+      });
+      table.appendChild(tbody);
+      modalBody.appendChild(table);
+    });
+
+    modalOverlay.classList.remove('hidden');
+  }
+
+  function closeModal() {
+    modalOverlay.classList.add('hidden');
+  }
+
+  // === ЗАГРУЗКА ДАННЫХ ===
+  async function loadData() {
+    try {
+      const [csvResponse, jsonResponse] = await Promise.all([
+        fetch('verbs.csv'),
+        fetch('conjugations.json')
+      ]);
+
+      if (!csvResponse.ok || !jsonResponse.ok) {
+        throw new Error('Network response was not ok. Check if files exist and are named correctly.');
+      }
+
+      // Обрабатываем CSV
+      const csvText = await csvResponse.text();
+      const lines = csvText.trim().split('\n').filter(Boolean);
+      allVerbsData = lines.map(line => {
+        const values = line.split(',');
+        const row = {};
+        mainTableHeaders.forEach((header, index) => { row[header] = values[index] ? values[index].trim() : ''; });
+        return row;
+      });
+
+      // Обрабатываем JSON и создаем нормализованную версию
+      const rawConjugations = await jsonResponse.json();
+      conjugationsData = {}; 
+      for (const key in rawConjugations) {
+          const normalizedKey = normalizeForMatch(key);
+          conjugationsData[normalizedKey] = rawConjugations[key];
+      }
+
+      renderTable(allVerbsData);
+    } catch (error) {
+      console.error('Failed to load data:', error);
+      showError(error.message);
+    } finally {
+      loadingIndicator.classList.add('hidden');
+    }
+  }
+
+  // === ОБРАБОТЧИКИ СОБЫТИЙ ===
+  searchInput.addEventListener('input', (event) => {
+    const searchTerm = event.target.value.trim();
+    if (!searchTerm) { renderTable(allVerbsData); return; }
+    
+    const normalizedSearchTerm = normalizeForSearch(searchTerm);
+    const filteredData = allVerbsData.filter(row => 
+        Object.values(row).some(cell => 
+            normalizeForSearch(String(cell)).includes(normalizedSearchTerm)
+        )
+    );
+    renderTable(filteredData);
+  });
+
+  modalCloseButton.addEventListener('click', closeModal);
+  modalOverlay.addEventListener('click', (e) => { if (e.target === modalOverlay) closeModal(); });
+  document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && !modalOverlay.classList.contains('hidden')) closeModal(); });
+
+  // === НАЧАЛЬНЫЙ ЗАПУСК ===
+  loadData();
+
+});
+</script>
+
+</body>
+</html>
