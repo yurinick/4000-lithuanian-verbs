@@ -66,11 +66,19 @@
 <script>
 document.addEventListener('DOMContentLoaded', () => {
 
-  // === ГЛОБАЛЬНЫЕ ПЕРЕМЕННЫЕ ===
+  // === ГЛОБАЛЬНЫЕ ПЕРЕМЕННЫЕ И НАСТРОЙКИ ===
   let allVerbsData = [];
   let conjugationsData = {};
-  let mainTableHeaders = []; // Теперь заголовки будут читаться из файла
-  const CONJUGATIONS_URL = 'https://gist.githubusercontent.com/yurinick/b589a1e7ec06acb884a086b4b79344c9/raw/fbf670eef33a6eca574b9f1956c32cbaece527d4/conjugations.json';
+  let mainTableHeaders = [];
+  const CONJUGATIONS_URL = 'https://gist.githubusercontent.com/yurinick/b589a1e7ec06acb84a086b4b79344c9/raw/fb1670ef33a6eca2574b9f195f6c32cbaece527d4/conjugations.json';
+  const TENSE_TRANSLATIONS = {
+      "Present tense": "Настоящее время",
+      "Past tense": "Прошедшее время",
+      "Future tense": "Будущее время",
+      "Conditional mood": "Сослагательное наклонение",
+      "Imperative mood": "Повелительное наклонение",
+      "Past freq. tense": "Прошедшее многократное время"
+  };
 
   // === ИНТЕГРАЦИЯ С TELEGRAM И ПРОВЕРКА ДОСТУПА ===
   const ALLOWED_USER_IDS = [123456789]; // <-- ЗАМЕНИТЕ ЭТОТ ID НА ВАШ
@@ -111,6 +119,20 @@ document.addEventListener('DOMContentLoaded', () => {
   const normalizeForMatch = (str) => str.normalize('NFD').replace(/[\u0300-\u036f]/g, '');
   const showError = (message) => { errorContainer.textContent = message; errorContainer.classList.remove('hidden'); };
   
+  // Улучшенный парсер для CSV строк, который обрабатывает кавычки
+  const parseCSVLine = (line) => {
+    const result = []; let currentField = ""; let inQuotedField = false;
+    for (let i = 0; i < line.length; i++) {
+      const char = line[i];
+      if (char === '"') {
+        if (inQuotedField && i + 1 < line.length && line[i + 1] === '"') { currentField += '"'; i++; } 
+        else { inQuotedField = !inQuotedField; }
+      } else if (char === ',' && !inQuotedField) { result.push(currentField.trim()); currentField = ""; } 
+      else { currentField += char; }
+    }
+    result.push(currentField.trim()); return result;
+  };
+
   // === ФУНКЦИИ РЕНДЕРИНГА ===
   const renderTable = (dataToRender) => {
     tableHead.innerHTML = ''; tableBody.innerHTML = '';
@@ -124,13 +146,13 @@ document.addEventListener('DOMContentLoaded', () => {
 
     dataToRender.forEach(row => {
       const tr = document.createElement('tr');
-      // Инфинитив теперь всегда в колонке с заголовком "Инфинитив"
       const infinitive = row['Инфинитив'];
+      const translation = row['Перевод'] || '';
       if (infinitive && conjugationsData[normalizeForMatch(infinitive)]) {
           tr.className = 'hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors duration-150 cursor-pointer';
           tr.addEventListener('click', () => {
               const normalizedKey = normalizeForMatch(infinitive);
-              showModalForVerb(normalizedKey);
+              showModalForVerb(normalizedKey, translation);
           });
       } else {
           tr.className = 'hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors duration-150';
@@ -148,71 +170,61 @@ document.addEventListener('DOMContentLoaded', () => {
     recordCount.textContent = dataToRender.length > 0 ? `Showing ${dataToRender.length} of ${allVerbsData.length}` : '';
   };
 
-  // === НОВАЯ, УМНАЯ ФУНКЦИЯ ДЛЯ МОДАЛЬНОГО ОКНА ===
-  function showModalForVerb(verbKey) {
+  function showModalForVerb(verbKey, translation) {
     const verbInfo = conjugationsData[verbKey];
     if (!verbInfo) { alert('No additional information available for this verb.'); return; }
     
-    modalTitle.textContent = verbKey.charAt(0).toUpperCase() + verbKey.slice(1);
+    // Пункт 1: Добавляем перевод в заголовок
+    modalTitle.textContent = `${verbKey.charAt(0).toUpperCase() + verbKey.slice(1)} - ${translation}`;
     modalBody.innerHTML = '';
 
-    // Шаг 1: Разделяем "плоский" массив на группы по временам
-    const tenses = {
-        "Present tense": [],
-        "Past tense": [],
-        "Future tense": [],
-        "Conditional mood": [],
-        "Imperative mood": verbInfo["Imperative mood"] || [],
-        "Past freq. tense": verbInfo["Past freq. tense"] || [],
-    };
+    // Пункт 2: Разделяем "плоский" массив на группы по временам
+    const tenses = { "Present tense": [], "Past tense": [], "Future tense": [], "Conditional mood": [],
+        "Imperative mood": verbInfo["Imperative mood"] || [], "Past freq. tense": verbInfo["Past freq. tense"] || [] };
     
     if (verbInfo["Present tense"]) {
         verbInfo["Present tense"].forEach(item => {
             const trans = item.translation.toLowerCase();
             if (trans.includes("will ")) { tenses["Future tense"].push(item); }
             else if (trans.includes("would ")) { tenses["Conditional mood"].push(item); }
-            else if (trans.endsWith("ed") || trans.includes("doubted")) { tenses["Past tense"].push(item); }
+            else if (trans.endsWith("ed") || ["doubted", "absorbed", "used to doubt"].some(pt => trans.includes(pt))) { tenses["Past tense"].push(item); }
             else { tenses["Present tense"].push(item); }
         });
     }
 
-    // Шаг 2: Создаем сводную таблицу для основных времен
+    // Пункт 3: Создаем сводную таблицу
     const mainTenses = ["Present tense", "Past tense", "Future tense", "Conditional mood"];
     const persons = ["Aš", "Tu", "Jis/ji", "Mes", "Jūs", "Jie/jos"];
-    
     let tableHTML = `<div class="overflow-x-auto"><table class="min-w-full text-sm divide-y divide-gray-200 dark:divide-gray-700 mb-4">`;
-    // Заголовок таблицы
     tableHTML += `<thead class="bg-gray-50 dark:bg-gray-700"><tr><th class="px-2 py-1 text-left font-medium text-gray-500 dark:text-gray-300"></th>`;
-    mainTenses.forEach(tense => {
-        tableHTML += `<th class="px-2 py-1 text-left font-medium text-gray-500 dark:text-gray-300">${tense}</th>`;
-    });
+    mainTenses.forEach(tense => { tableHTML += `<th class="px-2 py-1 text-left font-medium text-gray-500 dark:text-gray-300">${TENSE_TRANSLATIONS[tense] || tense}</th>`; });
     tableHTML += `</tr></thead>`;
     
-    // Тело таблицы
-    tableHTML += `<tbody class="divide-y divide-gray-200 dark:divide-gray-700">`;
+    // Пункт 4: Добавляем "зебру" в tbody
+    tableHTML += `<tbody class="divide-y divide-gray-200 dark:divide-gray-700 even:bg-gray-50 dark:even:bg-gray-700">`;
     persons.forEach((person, personIndex) => {
         tableHTML += `<tr class="hover:bg-gray-100 dark:hover:bg-gray-600">`;
         tableHTML += `<td class="px-2 py-1 font-semibold">${person}</td>`;
         mainTenses.forEach(tense => {
             const item = tenses[tense][personIndex];
-            const form = item ? item.forms[0] : '-'; // Берем первую форму
-            const translation = item ? item.translation : '';
-            tableHTML += `<td class="px-2 py-1" title="${translation}">${form}</td>`;
+            const form = item ? item.forms[0] : '-';
+            const trans = item ? item.translation : '';
+            tableHTML += `<td class="px-2 py-1" title="${trans}">${form}</td>`;
         });
         tableHTML += `</tr>`;
     });
     tableHTML += `</tbody></table></div>`;
     modalBody.innerHTML = tableHTML;
     
-    // Шаг 3: Добавляем остальные времена (Imperative, Past freq.) как отдельные таблицы
     ["Imperative mood", "Past freq. tense"].forEach(tense => {
         if (tenses[tense].length > 0) {
-            let tenseHTML = `<h3 class="text-lg font-semibold mt-4 mb-2 text-sky-600 dark:text-sky-400">${tense}</h3>`;
-            tenseHTML += `<table class="min-w-full text-sm divide-y divide-gray-200 dark:divide-gray-700 mb-4">`;
+            let tenseHTML = `<h3 class="text-lg font-semibold mt-4 mb-2 text-sky-600 dark:text-sky-400">${TENSE_TRANSLATIONS[tense] || tense}</h3>`;
+            // Пункт 4: Добавляем "зебру" и сюда
+            tenseHTML += `<table class="min-w-full text-sm"><tbody class="divide-y divide-gray-200 dark:divide-gray-700 even:bg-gray-50 dark:even:bg-gray-700">`;
             tenses[tense].forEach(row => {
-                tenseHTML += `<tr class="hover:bg-gray-100 dark:hover:bg-gray-600"><td class="px-2 py-1 w-1/4">${row.person}</td><td class="px-2 py-1">${row.forms.join(', ')}</td></tr>`;
+                tenseHTML += `<tr class="hover:bg-gray-100 dark:hover:bg-gray-600"><td class="px-2 py-1 w-1/4 font-semibold">${row.person}</td><td class="px-2 py-1">${row.forms.join(', ')}</td></tr>`;
             });
-            tenseHTML += `</table>`;
+            tenseHTML += `</tbody></table>`;
             modalBody.innerHTML += tenseHTML;
         }
     });
@@ -225,31 +237,21 @@ document.addEventListener('DOMContentLoaded', () => {
   // === ЗАГРУЗКА ДАННЫХ ===
   async function loadData() {
     try {
-      const [csvResponse, jsonResponse] = await Promise.all([
-        fetch('verbs.csv'),
-        fetch(CONJUGATIONS_URL)
-      ]);
-      if (!csvResponse.ok) throw new Error('Could not load verbs.csv. Is it in the repository?');
-      if (!jsonResponse.ok) throw new Error('Could not load conjugations.json from Gist. Check the URL.');
+      const [csvResponse, jsonResponse] = await Promise.all([ fetch('verbs.csv'), fetch(CONJUGATIONS_URL) ]);
+      if (!csvResponse.ok) throw new Error('Could not load verbs.csv');
+      if (!jsonResponse.ok) throw new Error('Could not load conjugations.json from Gist');
       
       const csvText = await csvResponse.text();
       const lines = csvText.trim().split('\n').filter(Boolean);
       
-      // Читаем заголовки из первой строки CSV
-      mainTableHeaders = lines[0].split(',').map(h => h.trim());
-      // Индекс колонки "Инфинитив" для клика
-      const infinitiveIndex = mainTableHeaders.indexOf('Инфинитив');
-      if (infinitiveIndex === -1) {
-          throw new Error('CSV file must have a column named "Инфинитив"');
-      }
-
-      // Обрабатываем остальные строки
+      // Пункт 1: Читаем все заголовки из первой строки
+      mainTableHeaders = parseCSVLine(lines[0]);
+      
+      // Пункт 3: Используем улучшенный парсер для всех строк
       allVerbsData = lines.slice(1).map(line => {
-        const values = line.split(',');
+        const values = parseCSVLine(line);
         const row = {};
-        mainTableHeaders.forEach((header, index) => {
-            row[header] = values[index] ? values[index].trim() : '';
-        });
+        mainTableHeaders.forEach((header, index) => { row[header] = values[index] || ''; });
         return row;
       });
 
