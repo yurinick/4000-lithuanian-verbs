@@ -26,7 +26,7 @@
     </div>
 </div>
 
-<div id="main-content" class="mx-auto max-w-5xl w-full">
+<div id="main-content" class="mx-auto max-w-5xl">
   <header class="p-4 bg-gray-100 dark:bg-gray-900 border-b border-gray-200 dark:border-gray-700">
     <h1 class="text-xl sm:text-2xl font-bold text-sky-700 dark:text-sky-300 text-center">
       Lithuanian Verbs Search
@@ -44,9 +44,9 @@
         <p class="text-lg text-gray-600 dark:text-gray-400">No results found.</p>
       </div>
       <div class="overflow-x-auto bg-white dark:bg-gray-800 rounded-lg shadow-md">
-        <table class="min-w-full text-sm table-auto">
+        <table class="min-w-full text-sm">
           <thead id="table-head" class="bg-gray-50 dark:bg-gray-700 sticky top-0 z-10"></thead>
-          <tbody id="table-body" class="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700"></tbody>
+          <tbody id="table-body" class="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700 even:bg-gray-50 dark:even:bg-gray-700"></tbody>
         </table>
       </div>
        <p id="record-count" class="mt-4 text-xs text-gray-500 dark:text-gray-400 text-center"></p>
@@ -67,38 +67,59 @@
 document.addEventListener('DOMContentLoaded', () => {
 
   // === ГЛОБАЛЬНЫЕ ПЕРЕМЕННЫЕ И НАСТРОЙКИ ===
-  let allVerbsData = []; let conjugationsData = {}; let mainTableHeaders = [];
-  const CONJUGATIONS_URL = 'https://gist.githubusercontent.com/yurinick/b589a1e7ec06acb884a086b4b79344c9/raw/fbf670eef33a6eca574b9f1956c32cbaece527d4/conjugations.json';
-  const TENSE_TRANSLATIONS = { "Present tense": "Настоящее время", "Past tense": "Прошедшее время", "Future tense": "Будущее время",
-      "Conditional mood": "Сослагательное наклонение", "Imperative mood": "Повелительное наклонение", "Past freq. tense": "Прошедшее многократное время" };
+  let allVerbsData = [];
+  let conjugationsData = {};
+  let mainTableHeaders = [];
+  const CONJUGATIONS_URL = 'https://gist.githubusercontent.com/yurinick/b589a1e7ec06acb84a086b4b79344c9/raw/fb1670ef33a6eca2574b9f195f6c32cbaece527d4/conjugations.json';
+  const TENSE_TRANSLATIONS = {
+      "Present tense": "Настоящее время",
+      "Past tense": "Прошедшее время",
+      "Future tense": "Будущее время",
+      "Conditional mood": "Сослагательное наклонение",
+      "Imperative mood": "Повелительное наклонение",
+      "Past freq. tense": "Прошедшее многократное время"
+  };
 
-  // === ИНТЕГРАЦИЯ С TELEGRAM ===
-  const ALLOWED_USER_IDS = [591135240, 1023867123, 6142000655];
+  // === ИНТЕГРАЦИЯ С TELEGRAM И ПРОВЕРКА ДОСТУПА ===
+  const ALLOWED_USER_IDS = [123456789]; // <-- ЗАМЕНИТЕ ЭТОТ ID НА ВАШ
 
   try {
-    const tg = window.Telegram.WebApp; const currentUser = tg.initDataUnsafe?.user;
+    const tg = window.Telegram.WebApp;
+    const currentUser = tg.initDataUnsafe?.user;
     if (currentUser && !ALLOWED_USER_IDS.includes(currentUser.id)) {
-      document.getElementById('main-content').style.display = 'none'; document.getElementById('access-denied').classList.remove('hidden'); tg.ready();
+      document.getElementById('main-content').style.display = 'none';
+      document.getElementById('access-denied').classList.remove('hidden');
+      tg.ready();
     } else {
-      tg.ready(); const applyTheme = () => document.body.classList.toggle('dark', tg.colorScheme === 'dark');
-      tg.onEvent('themeChanged', applyTheme); applyTheme();
+      tg.ready();
+      const applyTheme = () => document.body.classList.toggle('dark', tg.colorScheme === 'dark');
+      tg.onEvent('themeChanged', applyTheme);
+      applyTheme();
       tg.MainButton.setText('Закрыть').setTextColor('#ffffff').setColor('#0ea5e9').show();
       tg.onEvent('mainButtonClicked', () => tg.close());
     }
   } catch (e) { console.log("Not in Telegram environment."); }
 
   // === ССЫЛКИ НА ЭЛЕМЕНТЫ DOM ===
-  const searchInput = document.getElementById('searchInput'); const tableHead = document.getElementById('table-head');
-  const tableBody = document.getElementById('table-body'); const loadingIndicator = document.getElementById('loading-indicator');
-  const noResultsMessage = document.getElementById('no-results-message'); const errorContainer = document.getElementById('error-container');
-  const recordCount = document.getElementById('record-count'); const modalOverlay = document.getElementById('modal-overlay');
-  const modalContent = document.getElementById('modal-content'); const modalTitle = document.getElementById('modal-title');
-  const modalBody = document.getElementById('modal-body'); const modalCloseButton = document.getElementById('modal-close-button');
+  const searchInput = document.getElementById('searchInput');
+  const tableHead = document.getElementById('table-head');
+  const tableBody = document.getElementById('table-body');
+  const loadingIndicator = document.getElementById('loading-indicator');
+  const noResultsMessage = document.getElementById('no-results-message');
+  const errorContainer = document.getElementById('error-container');
+  const recordCount = document.getElementById('record-count');
+  const modalOverlay = document.getElementById('modal-overlay');
+  const modalContent = document.getElementById('modal-content');
+  const modalTitle = document.getElementById('modal-title');
+  const modalBody = document.getElementById('modal-body');
+  const modalCloseButton = document.getElementById('modal-close-button');
 
   // === ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ ===
   const normalizeForSearch = (str) => str.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
   const normalizeForMatch = (str) => str.normalize('NFD').replace(/[\u0300-\u036f]/g, '');
   const showError = (message) => { errorContainer.textContent = message; errorContainer.classList.remove('hidden'); };
+  
+  // Улучшенный парсер для CSV строк, который обрабатывает кавычки
   const parseCSVLine = (line) => {
     const result = []; let currentField = ""; let inQuotedField = false;
     for (let i = 0; i < line.length; i++) {
@@ -119,34 +140,27 @@ document.addEventListener('DOMContentLoaded', () => {
     mainTableHeaders.forEach(h => {
       const th = document.createElement('th');
       th.className = 'px-4 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider';
-      if (['№', 'P', '#'].includes(h)) { th.style.width = '1%'; }
-      headerRow.appendChild(th);
+      th.textContent = h; headerRow.appendChild(th);
     });
     tableHead.appendChild(headerRow);
 
-    dataToRender.forEach((row, index) => {
+    dataToRender.forEach(row => {
       const tr = document.createElement('tr');
-      // ПУНКТ 1: ВОЗВРАЩАЕМ "ЗЕБРУ"
-      if(index % 2 !== 0){ tr.classList.add("bg-gray-50", "dark:bg-slate-800"); }
-      tr.classList.add("hover:bg-sky-100", "dark:hover:bg-sky-900", "transition-colors", "duration-150");
-      
-      const infinitive = row['Инфинитив']; const translation = row['Перевод инфинитива'] || '';
+      const infinitive = row['Инфинитив'];
+      const translation = row['Перевод'] || '';
       if (infinitive && conjugationsData[normalizeForMatch(infinitive)]) {
-          tr.classList.add('cursor-pointer');
+          tr.className = 'hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors duration-150 cursor-pointer';
           tr.addEventListener('click', () => {
               const normalizedKey = normalizeForMatch(infinitive);
               showModalForVerb(normalizedKey, translation);
           });
+      } else {
+          tr.className = 'hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors duration-150';
       }
       
       mainTableHeaders.forEach(header => {
         const td = document.createElement('td');
-        // ПУНКТ 3: УПРАВЛЯЕМ ШИРИНОЙ И ПЕРЕНОСОМ
-        if (['Перевод инфинитива', 'Вопрос'].includes(header)) {
-            td.className = 'px-4 py-2 text-gray-700 dark:text-gray-300 whitespace-normal';
-        } else {
-            td.className = 'px-4 py-2 text-gray-700 dark:text-gray-300 whitespace-nowrap';
-        }
+        td.className = 'px-4 py-2 whitespace-nowrap md:whitespace-normal text-gray-700 dark:text-gray-300';
         td.textContent = row[header]; tr.appendChild(td);
       });
       tableBody.appendChild(tr);
@@ -158,24 +172,27 @@ document.addEventListener('DOMContentLoaded', () => {
 
   function showModalForVerb(verbKey, translation) {
     const verbInfo = conjugationsData[verbKey];
-    if (!verbInfo) { alert('No additional information available.'); return; }
+    if (!verbInfo) { alert('No additional information available for this verb.'); return; }
     
+    // Пункт 1: Добавляем перевод в заголовок
     modalTitle.textContent = `${verbKey.charAt(0).toUpperCase() + verbKey.slice(1)} - ${translation}`;
     modalBody.innerHTML = '';
 
+    // Пункт 2: Разделяем "плоский" массив на группы по временам
     const tenses = { "Present tense": [], "Past tense": [], "Future tense": [], "Conditional mood": [],
         "Imperative mood": verbInfo["Imperative mood"] || [], "Past freq. tense": verbInfo["Past freq. tense"] || [] };
     
     if (verbInfo["Present tense"]) {
         verbInfo["Present tense"].forEach(item => {
             const trans = item.translation.toLowerCase();
-            if (trans.includes("will ")) tenses["Future tense"].push(item);
-            else if (trans.includes("would ")) tenses["Conditional mood"].push(item);
-            else if (trans.endsWith("ed") || ["doubted", "absorbed", "used to doubt"].some(pt => trans.includes(pt))) tenses["Past tense"].push(item);
-            else tenses["Present tense"].push(item);
+            if (trans.includes("will ")) { tenses["Future tense"].push(item); }
+            else if (trans.includes("would ")) { tenses["Conditional mood"].push(item); }
+            else if (trans.endsWith("ed") || ["doubted", "absorbed", "used to doubt"].some(pt => trans.includes(pt))) { tenses["Past tense"].push(item); }
+            else { tenses["Present tense"].push(item); }
         });
     }
 
+    // Пункт 3: Создаем сводную таблицу
     const mainTenses = ["Present tense", "Past tense", "Future tense", "Conditional mood"];
     const persons = ["Aš", "Tu", "Jis/ji", "Mes", "Jūs", "Jie/jos"];
     let tableHTML = `<div class="overflow-x-auto"><table class="min-w-full text-sm divide-y divide-gray-200 dark:divide-gray-700 mb-4">`;
@@ -183,15 +200,15 @@ document.addEventListener('DOMContentLoaded', () => {
     mainTenses.forEach(tense => { tableHTML += `<th class="px-2 py-1 text-left font-medium text-gray-500 dark:text-gray-300">${TENSE_TRANSLATIONS[tense] || tense}</th>`; });
     tableHTML += `</tr></thead>`;
     
-    tableHTML += `<tbody class="divide-y divide-gray-200 dark:divide-gray-700">`;
+    // Пункт 4: Добавляем "зебру" в tbody
+    tableHTML += `<tbody class="divide-y divide-gray-200 dark:divide-gray-700 even:bg-gray-50 dark:even:bg-gray-700">`;
     persons.forEach((person, personIndex) => {
-        const isEven = personIndex % 2 !== 0;
-        const zebraClass = isEven ? 'bg-gray-50 dark:bg-slate-800' : '';
-        tableHTML += `<tr class="${zebraClass} hover:bg-sky-100 dark:hover:bg-sky-900">`;
+        tableHTML += `<tr class="hover:bg-gray-100 dark:hover:bg-gray-600">`;
         tableHTML += `<td class="px-2 py-1 font-semibold">${person}</td>`;
         mainTenses.forEach(tense => {
             const item = tenses[tense][personIndex];
-            const form = item ? item.forms[0] : '-'; const trans = item ? item.translation : '';
+            const form = item ? item.forms[0] : '-';
+            const trans = item ? item.translation : '';
             tableHTML += `<td class="px-2 py-1" title="${trans}">${form}</td>`;
         });
         tableHTML += `</tr>`;
@@ -202,11 +219,10 @@ document.addEventListener('DOMContentLoaded', () => {
     ["Imperative mood", "Past freq. tense"].forEach(tense => {
         if (tenses[tense].length > 0) {
             let tenseHTML = `<h3 class="text-lg font-semibold mt-4 mb-2 text-sky-600 dark:text-sky-400">${TENSE_TRANSLATIONS[tense] || tense}</h3>`;
-            tenseHTML += `<table class="min-w-full text-sm"><tbody class="divide-y divide-gray-200 dark:divide-gray-700">`;
-            tenses[tense].forEach((row, rowIndex) => {
-                const isEven = rowIndex % 2 !== 0;
-                const zebraClass = isEven ? 'bg-gray-50 dark:bg-slate-800' : '';
-                tenseHTML += `<tr class="${zebraClass} hover:bg-sky-100 dark:hover:bg-sky-900"><td class="px-2 py-1 w-1/4 font-semibold">${row.person}</td><td class="px-2 py-1">${row.forms.join(', ')}</td></tr>`;
+            // Пункт 4: Добавляем "зебру" и сюда
+            tenseHTML += `<table class="min-w-full text-sm"><tbody class="divide-y divide-gray-200 dark:divide-gray-700 even:bg-gray-50 dark:even:bg-gray-700">`;
+            tenses[tense].forEach(row => {
+                tenseHTML += `<tr class="hover:bg-gray-100 dark:hover:bg-gray-600"><td class="px-2 py-1 w-1/4 font-semibold">${row.person}</td><td class="px-2 py-1">${row.forms.join(', ')}</td></tr>`;
             });
             tenseHTML += `</tbody></table>`;
             modalBody.innerHTML += tenseHTML;
@@ -227,7 +243,11 @@ document.addEventListener('DOMContentLoaded', () => {
       
       const csvText = await csvResponse.text();
       const lines = csvText.trim().split('\n').filter(Boolean);
+      
+      // Пункт 1: Читаем все заголовки из первой строки
       mainTableHeaders = parseCSVLine(lines[0]);
+      
+      // Пункт 3: Используем улучшенный парсер для всех строк
       allVerbsData = lines.slice(1).map(line => {
         const values = parseCSVLine(line);
         const row = {};
@@ -241,9 +261,14 @@ document.addEventListener('DOMContentLoaded', () => {
           const normalizedKey = normalizeForMatch(key);
           conjugationsData[normalizedKey] = rawConjugations[key];
       }
+
       renderTable(allVerbsData);
-    } catch (error) { console.error('Failed to load data:', error); showError(error.message); } 
-    finally { loadingIndicator.classList.add('hidden'); }
+    } catch (error) {
+      console.error('Failed to load data:', error);
+      showError(error.message);
+    } finally {
+      loadingIndicator.classList.add('hidden');
+    }
   }
 
   // === ОБРАБОТЧИКИ СОБЫТИЙ ===
@@ -252,7 +277,9 @@ document.addEventListener('DOMContentLoaded', () => {
     if (!searchTerm) { renderTable(allVerbsData); return; }
     const normalizedSearchTerm = normalizeForSearch(searchTerm);
     const filteredData = allVerbsData.filter(row => 
-        Object.values(row).some(cell => normalizeForSearch(String(cell)).includes(normalizedSearchTerm))
+        Object.values(row).some(cell => 
+            normalizeForSearch(String(cell)).includes(normalizedSearchTerm)
+        )
     );
     renderTable(filteredData);
   });
