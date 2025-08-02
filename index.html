@@ -221,10 +221,19 @@ document.addEventListener('DOMContentLoaded', () => {
       if (verbInfo["Present tense"]) {
           verbInfo["Present tense"].forEach(item => {
               const trans = item.translation.toLowerCase();
-              if (trans.includes("will ")) { tenses["Future tense"].push(item); }
-              else if (trans.includes("would ")) { tenses["Conditional mood"].push(item); }
-              else if (trans.endsWith("ed") || ["doubted", "absorbed", "used to doubt"].some(pt => trans.includes(pt))) { tenses["Past tense"].push(item); }
-              else { tenses["Present tense"].push(item); }
+              const words = trans.split(' ');
+              const verb = words.length > 1 ? words[1] : ''; // Получаем второе слово (глагол)
+
+              // --- КЛЮЧЕВОЕ ИЗМЕНЕНИЕ ЛОГИКИ ЗДЕСЬ ---
+              if (trans.includes("will ")) { 
+                  tenses["Future tense"].push(item);
+              } else if (trans.includes("would ")) { 
+                  tenses["Conditional mood"].push(item);
+              } else if (verb.endsWith("ed") || trans.includes(" used to ")) { // Проверяем глагол, а не всю фразу
+                  tenses["Past tense"].push(item);
+              } else { 
+                  tenses["Present tense"].push(item);
+              }
           });
       }
 
