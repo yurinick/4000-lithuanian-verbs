@@ -126,6 +126,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     dataToRender.forEach((row, index) => {
       const tr = document.createElement('tr');
+      // ПУНКТ 1: ВОЗВРАЩАЕМ "ЗЕБРУ"
       if(index % 2 !== 0){ tr.classList.add("bg-gray-50", "dark:bg-slate-800"); }
       tr.classList.add("hover:bg-sky-100", "dark:hover:bg-sky-900", "transition-colors", "duration-150");
       
@@ -140,6 +141,7 @@ document.addEventListener('DOMContentLoaded', () => {
       
       mainTableHeaders.forEach(header => {
         const td = document.createElement('td');
+        // ПУНКТ 3: УПРАВЛЯЕМ ШИРИНОЙ И ПЕРЕНОСОМ
         if (['Перевод инфинитива', 'Вопрос'].includes(header)) {
             td.className = 'px-4 py-2 text-gray-700 dark:text-gray-300 whitespace-normal';
         } else {
