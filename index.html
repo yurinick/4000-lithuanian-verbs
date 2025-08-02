@@ -201,9 +201,9 @@ document.addEventListener('DOMContentLoaded', () => {
     tableHTML += `</tr></thead>`;
     
     // Пункт 4: Добавляем "зебру" в tbody
-    tableHTML += `<tbody class="divide-y divide-gray-200 dark:divide-gray-700 even:bg-gray-50 dark:even:bg-gray-700">`;
+    tableHTML += `<tbody class="divide-y divide-gray-200 dark:divide-gray-700">`;
     persons.forEach((person, personIndex) => {
-        tableHTML += `<tr class="hover:bg-gray-100 dark:hover:bg-gray-600">`;
+        tableHTML += `<tr class="hover:bg-gray-100 dark:hover:bg-gray-600 even:bg-gray-50 dark:even:bg-gray-600">`;
         tableHTML += `<td class="px-2 py-1 font-semibold">${person}</td>`;
         mainTenses.forEach(tense => {
             const item = tenses[tense][personIndex];
