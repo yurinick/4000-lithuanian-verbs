@@ -25,7 +25,7 @@
     </div>
 </div>
 
-<div id="main-content" class="mx-auto max-w-5xl">
+<div id="main-content" class="mx-auto max-w-7xl flex flex-col h-screen">
   <header class="p-4 bg-gray-100 dark:bg-gray-900 border-b border-gray-200 dark:border-gray-700">
     <h1 class="text-xl sm:text-2xl font-bold text-sky-700 dark:text-sky-300 text-center">
       Lithuanian Verbs Search
@@ -41,7 +41,7 @@
     <div id="table-wrapper" class="overflow-x-auto overflow-y-auto flex-grow bg-white dark:bg-gray-800 rounded-lg shadow-md">
         <div id="loading-indicator" ...>...</div>
         <div id="no-results-message" ...>...</div>
-        <table class="min-w-full text-sm">
+        <table class="min-w-full text-sm table-fixed">
             <thead id="table-head" class="bg-gray-50 dark:bg-gray-700 sticky top-0 z-10"></thead>
             <tbody id="table-body" ...></tbody>
         </table>
@@ -132,38 +132,63 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // === ФУНКЦИИ РЕНДЕРИНГА ===
   const renderTable = (dataToRender) => {
-    tableHead.innerHTML = ''; tableBody.innerHTML = '';
+    tableHead.innerHTML = '';
+    tableBody.innerHTML = '';
+
     const headerRow = document.createElement('tr');
-    mainTableHeaders.forEach(h => {
+    mainTableHeaders.forEach(headerText => {
       const th = document.createElement('th');
-      th.className = 'px-4 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider';
-      th.textContent = h; headerRow.appendChild(th);
+      th.className = 'px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider';
+    
+      // Применяем классы ширины в зависимости от заголовка
+      switch (headerText) {
+        case '#':
+          th.classList.add('w-16'); // Очень узкий столбец для номера
+          break;
+        case 'Тип':
+        case 'Лицо':
+          th.classList.add('w-24'); // Узкие столбцы
+          break;
+        case 'Инфинитив':
+        case '3-е л., наст. вр.':
+        case '3-е л., прош. вр.':
+          th.classList.add('w-40'); // Столбцы для глаголов, средней ширины
+          break;
+        case 'Вопрос':
+          th.classList.add('w-32'); // Узкий столбец для вопроса
+          break;
+        // Для столбца "Перевод" мы НЕ задаем ширину,
+        // чтобы он автоматически занял все оставшееся место.
+      }
+
+      th.textContent = headerText;
+      headerRow.appendChild(th);
     });
     tableHead.appendChild(headerRow);
 
     dataToRender.forEach(row => {
       const tr = document.createElement('tr');
+      const baseClasses = 'hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors duration-150 even:bg-gray-50 dark:even:bg-gray-700';
+    
       const infinitive = row['Инфинитив'];
       const translation = row['Перевод'] || '';
-	  const baseClasses = 'hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors duration-150 even:bg-gray-50 dark:even:bg-gray-700';
-	  if (infinitive && conjugationsData[normalizeForMatch(infinitive)]) {
-	      tr.className = `${baseClasses} cursor-pointer`; // Добавляем курсор для кликабельных строк
-	      tr.addEventListener('click', () => {
-	          const normalizedKey = normalizeForMatch(infinitive);
-	          showModalForVerb(normalizedKey, translation);
-	      });
+      if (infinitive && conjugationsData[normalizeForMatch(infinitive)]) {
+        tr.className = `${baseClasses} cursor-pointer`;
+        tr.addEventListener('click', () => showModalForVerb(normalizeForMatch(infinitive), translation));
       } else {
-		  tr.className = baseClasses; // Применяем только базовые классы
+        tr.className = baseClasses;
       }
-      
+
       mainTableHeaders.forEach(header => {
         const td = document.createElement('td');
-        td.className = 'px-4 py-2 whitespace-nowrap md:whitespace-normal text-gray-700 dark:text-gray-300';
-        td.textContent = row[header]; tr.appendChild(td);
+        td.className = 'px-4 py-2 text-gray-700 dark:text-gray-300 break-words';
+      
+        td.textContent = row[header];
+        tr.appendChild(td);
       });
       tableBody.appendChild(tr);
     });
-    
+
     noResultsMessage.classList.toggle('hidden', dataToRender.length > 0);
     recordCount.textContent = dataToRender.length > 0 ? `Showing ${dataToRender.length} of ${allVerbsData.length}` : '';
   };
