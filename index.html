@@ -131,25 +131,26 @@ document.addEventListener('DOMContentLoaded', () => {
   };
 
   // === ФУНКЦИИ РЕНДЕРИНГА ===
+  // ЗАМЕНИТЕ ВСЮ ФУНКЦИЮ RENDERTABLE НА ЭТОТ КОД
   const renderTable = (dataToRender) => {
     tableHead.innerHTML = '';
     tableBody.innerHTML = '';
 
     const headerRow = document.createElement('tr');
-    // --- ИЗМЕНЕНИЕ 1: Используем цикл с индексом для заголовков ---
     mainTableHeaders.forEach((headerText, index) => {
       const th = document.createElement('th');
-      // Общие классы для всех заголовков, включая ЦЕНТРИРОВАНИЕ
-      th.className = 'py-3 text-center text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider';
+    
+      // --- ИЗМЕНЕНИЕ 1: Добавляем синий цвет заголовкам ---
+      // Заменили text-gray-* на text-sky-*
+      th.className = 'py-3 text-center text-xs font-medium text-sky-700 dark:text-sky-300 uppercase tracking-wider';
 
-      // --- ИЗМЕНЕНИЕ 2: Применяем ширину и отступы по ИНДЕКСУ, а не по тексту ---
-      if (index <= 2) { // Для первых трех столбцов (№, P, #) делаем их узкими
-        th.classList.add('w-20', 'px-2'); // Задаем небольшую ширину и небольшой отступ
+      // --- ИЗМЕНЕНИЕ 2: Задаем более точную и узкую ширину ---
+      if (index <= 2) { // Для первых трех столбцов (№, P, #)
+        // Используем произвольное значение для точной ширины и еще меньшие отступы
+        th.classList.add('w-[70px]', 'px-1');
       } else if (headerText === 'Перевод') {
-        // Для столбца "Перевод" НЕ задаем ширину, чтобы он был "резиновым"
         th.classList.add('px-4'); 
       } else {
-        // Для всех остальных столбцов (Инфинитив и т.д.)
         th.classList.add('w-40', 'px-4');
       }
 
@@ -157,7 +158,6 @@ document.addEventListener('DOMContentLoaded', () => {
       headerRow.appendChild(th);
     });
     tableHead.appendChild(headerRow);
-
 
     dataToRender.forEach(row => {
       const tr = document.createElement('tr');
@@ -172,17 +172,16 @@ document.addEventListener('DOMContentLoaded', () => {
         tr.className = baseClasses;
       }
 
-      // --- ИЗМЕНЕНИЕ 3: Применяем отступы для ячеек данных, чтобы они соответствовали заголовкам ---
       mainTableHeaders.forEach((header, index) => {
         const td = document.createElement('td');
-        // Общие классы
         let tdClasses = 'py-2 text-gray-700 dark:text-gray-300 break-words';
       
         // Логика отступов, зеркальная заголовкам
         if (index <= 2) { // Первые три столбца
-          tdClasses += ' px-2 text-center'; // Делаем текст в ячейках тоже по центру для аккуратности
+          // Уменьшаем отступы и здесь для соответствия
+          tdClasses += ' px-1 text-center'; 
         } else { // Все остальные
-          tdClasses += ' px-4 text-left'; // Остальные - по левому краю
+          tdClasses += ' px-4 text-left'; 
         }
       
         td.className = tdClasses;
