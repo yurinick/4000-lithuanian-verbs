@@ -215,27 +215,16 @@ document.addEventListener('DOMContentLoaded', () => {
       modalTitle.textContent = `${originalInfinitive.charAt(0).toUpperCase() + originalInfinitive.slice(1)} - ${translation}`;
       modalBody.innerHTML = '';
 
-      const tenses = { "Present tense": [], "Past tense": [], "Future tense": [], "Conditional mood": [],
-          "Imperative mood": verbInfo["Imperative mood"] || [], "Past freq. tense": verbInfo["Past freq. tense"] || [] };
-    
-      if (verbInfo["Present tense"]) {
-          verbInfo["Present tense"].forEach(item => {
-              const trans = item.translation.toLowerCase();
-              const words = trans.split(' ');
-              const verb = words.length > 1 ? words[1] : ''; // Получаем второе слово (глагол)
-
-              // --- КЛЮЧЕВОЕ ИЗМЕНЕНИЕ ЛОГИКИ ЗДЕСЬ ---
-              if (trans.includes("will ")) { 
-                  tenses["Future tense"].push(item);
-              } else if (trans.includes("would ")) { 
-                  tenses["Conditional mood"].push(item);
-              } else if (verb.endsWith("ed") || trans.includes(" used to ")) { // Проверяем глагол, а не всю фразу
-                  tenses["Past tense"].push(item);
-              } else { 
-                  tenses["Present tense"].push(item);
-              }
-          });
-      }
+      // --- НОВАЯ, ПРОСТАЯ И НАДЕЖНАЯ ЛОГИКА ---
+      // Больше никакой "нарезки". Просто берем данные по ключам.
+      const tenses = {
+          "Present tense": verbInfo["Present tense"],
+          "Past tense": verbInfo["Past tense"],
+          "Future tense": verbInfo["Future tense"],
+          "Conditional mood": verbInfo["Conditional mood"],
+          "Imperative mood": verbInfo["Imperative mood"],
+          "Past freq. tense": verbInfo["Past freq. tense"]
+      };
 
       const mainTenses = ["Present tense", "Past tense", "Future tense", "Conditional mood"];
       const persons = ["Aš", "Tu", "Jis/ji", "Mes", "Jūs", "Jie/jos"];
@@ -252,7 +241,10 @@ document.addEventListener('DOMContentLoaded', () => {
           tableHTML += `<tr class="hover:bg-gray-100 dark:hover:bg-gray-600 even:bg-gray-50 dark:even:bg-gray-600">`;
           tableHTML += `<td class="px-2 py-1 font-semibold">${person}</td>`;
           mainTenses.forEach(tense => {
-              const item = tenses[tense][personIndex];
+              // Проверяем, что массив для этого времени существует, перед тем как брать из него элемент
+              const tenseData = tenses[tense];
+              const item = tenseData ? tenseData[personIndex] : null;
+            
               const form = item ? getPreferredForm(item.forms) : '-';
               const trans = item ? item.translation : '';
               tableHTML += `<td class="px-2 py-1" title="${trans}">${form}</td>`;
@@ -263,7 +255,8 @@ document.addEventListener('DOMContentLoaded', () => {
       modalBody.innerHTML = tableHTML;
     
       ["Imperative mood", "Past freq. tense"].forEach(tense => {
-          if (tenses[tense].length > 0) {
+          // Проверяем, что для этих времен есть данные
+          if (tenses[tense] && tenses[tense].length > 0) {
               let tenseHTML = `<h3 class="text-lg font-semibold mt-4 mb-2 text-sky-600 dark:text-sky-400">${TENSE_TRANSLATIONS[tense] || tense}</h3>`;
               tenseHTML += `<table class="min-w-full text-sm"><tbody class="divide-y divide-gray-200 dark:divide-gray-700">`;
               tenses[tense].forEach(row => {
